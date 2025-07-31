@@ -1,5 +1,8 @@
-﻿using ReciveAPI.Services.IServices;
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using ReciveAPI.Services.IServices;
 using System.Text.Json;
+using JsonSerializer = Newtonsoft.Json.JsonSerializer;
 
 namespace ReciveAPI.Services
 {
@@ -45,27 +48,72 @@ namespace ReciveAPI.Services
             }
         }
 
-        private async Task ProcessFileAsync(string jsonContent)
+
+        private async Task ProcessFileAsync(string filePath)
         {
-            _logger.LogInformation("Starting file processing...");
+            _logger.LogInformation("Starting streaming processing of: {FilePath}", filePath);
 
-            using JsonDocument doc = JsonDocument.Parse(jsonContent);
-            var root = doc.RootElement;
+            string outputFileName = $"TrackingNumbers_{DateTime.Now:yyyyMMddHHmmss}.txt";
 
-            string fileName = $"TrackingNumbers_{DateTime.Now:yyyyMMddHHmmss}.txt";
-
-            await using (StreamWriter writer = new StreamWriter(fileName))
+            try
             {
-                foreach (var item in root.EnumerateArray())
+                await using (var outputWriter = new StreamWriter(outputFileName))
+                await using (var fileStream = File.OpenRead(filePath))
+                using (var streamReader = new StreamReader(fileStream))
+                using (var jsonReader = new JsonTextReader(streamReader))
+
+
                 {
-                    if (item.TryGetProperty("U_TrackingNo", out var trackingNo))
+                    jsonReader.SupportMultipleContent = true;
+                    jsonReader.FloatParseHandling = FloatParseHandling.Decimal;
+
+                    var serializer = new JsonSerializer();
+
+                    while (await jsonReader.ReadAsync())
                     {
-                        await writer.WriteLineAsync(trackingNo.GetString());
+                        try
+                        {
+                            if (jsonReader.TokenType == JsonToken.StartObject)
+                            {
+                                var obj = await JObject.LoadAsync(jsonReader);
+
+                                if (obj["DocumentLines"] is JArray documentLines)
+                                {
+                                    foreach (var line in documentLines)
+                                    {
+                                        var trackingNo = line["U_TrackingNo"]?.ToString();
+                                        if (!string.IsNullOrEmpty(trackingNo))
+                                        {
+                                            await outputWriter.WriteLineAsync(trackingNo);
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    var trackingNo = obj["U_TrackingNo"]?.ToString();
+                                    if (!string.IsNullOrEmpty(trackingNo))
+                                    {
+                                        await outputWriter.WriteLineAsync(trackingNo);
+                                    }
+                                }
+                            }
+                        }
+                        catch (JsonReaderException jex)
+                        {
+                            _logger.LogWarning(jex, "Skipping malformed JSON object");
+                            continue;
+                        }
                     }
                 }
-            }
 
-            _logger.LogInformation($"Completed processing. Tracking numbers written to {fileName}");
+                _logger.LogInformation("Completed processing. Output: {OutputFile}", outputFileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing file {FilePath}", filePath);
+                throw;
+            }
         }
+
     }
 }

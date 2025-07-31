@@ -18,8 +18,8 @@ namespace BackgroundProcessWorker.Services
             var factory = new ConnectionFactory()
             {
                 HostName = "localhost",
-                UserName = "ayodhya",
-                Password = "password",
+                UserName = "guest",
+                Password = "guest",
             };
 
             _connection = factory.CreateConnection();

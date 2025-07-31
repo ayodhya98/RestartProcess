@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Http.Features;
 using ReciveAPI.Services;
 using ReciveAPI.Services.IServices;
+using System.Runtime.InteropServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +18,27 @@ builder.Services.AddSingleton<IFileProcessingQueueServices, FileProcessingQueueS
 builder.Services.AddSingleton<IRabbitMQService, RabbitMQService>();
 builder.Services.AddHostedService<FileProcessingBackgroundService>();
 
+
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.Limits.MaxRequestBodySize = 524288000; // 500MB
+});
+
+// Configure form options
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 524288000; // 500MB
+    options.MemoryBufferThreshold = 524288000; // 500MB
+    options.ValueLengthLimit = int.MaxValue;
+    options.ValueCountLimit = int.MaxValue;
+});
+
+
+if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+{
+    AppContext.SetSwitch("Switch.System.IO.UseLegacyPathHandling", false);
+    AppContext.SetSwitch("Switch.System.IO.BlockLongPaths", false);
+}
 
 var app = builder.Build();
 

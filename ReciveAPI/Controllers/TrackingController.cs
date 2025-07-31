@@ -20,14 +20,43 @@ namespace ReciveAPI.Controllers
             _logger = logger;
         }
 
-        [HttpPost("process")]
-        public IActionResult ProcessFile([FromBody] string jsonContent)
+        [HttpPost("process-file")]
+        public async Task<IActionResult> ProcessFile(IFormFile file)
         {
-            _logger.LogInformation("Received file for processing");
+            if (file == null || file.Length == 0)
+            {
+                _logger.LogWarning("No file uploaded");
+                return BadRequest("Please upload a file");
+            }
 
-            _queueServices.Enqueue(jsonContent);
+            if (Path.GetExtension(file.FileName).ToLower() != ".json")
+            {
+                _logger.LogWarning("Invalid file type uploaded: {FileName}", file.FileName);
+                return BadRequest("Only JSON files are supported");
+            }
 
-            return Accepted();
+            try
+            {
+                // Read the file content
+                using var reader = new StreamReader(file.OpenReadStream());
+                var fileContent = await reader.ReadToEndAsync();
+
+                // Add to queue for background processing
+                _queueServices.Enqueue(fileContent);
+
+                _logger.LogInformation("File {FileName} queued for processing", file.FileName);
+                return Accepted(new
+                {
+                    Message = "File is being processed",
+                    FileName = file.FileName,
+                    Size = file.Length
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing file upload");
+                return StatusCode(500, "Internal server error");
+            }
         }
     }
 }
