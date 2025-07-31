@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36221.1 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReciveAPI", "ReciveAPI\ReciveAPI.csproj", "{3167F07A-D3B9-4617-B132-D6EAA1B849A3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackgroundProcessWorker", "BackgroundProcessWorker\BackgroundProcessWorker.csproj", "{FD084507-7BA4-4029-9420-21CE4C6606AB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3167F07A-D3B9-4617-B132-D6EAA1B849A3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3167F07A-D3B9-4617-B132-D6EAA1B849A3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3167F07A-D3B9-4617-B132-D6EAA1B849A3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3167F07A-D3B9-4617-B132-D6EAA1B849A3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FD084507-7BA4-4029-9420-21CE4C6606AB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FD084507-7BA4-4029-9420-21CE4C6606AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FD084507-7BA4-4029-9420-21CE4C6606AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FD084507-7BA4-4029-9420-21CE4C6606AB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {BD3A6465-6D4D-44D5-93EA-D7C9FC771D3B}
+	EndGlobalSection
+EndGlobal
