@@ -30,30 +30,42 @@ namespace ReciveAPI.Services
 
             while (!stoppingToken.IsCancellationRequested)
             {
-                if (_queueServices.TryDequeue(out var fileContent))
+                if (_queueServices.TryDequeue(out var filePath))
                 {
                     try
                     {
-                        await ProcessFileAsync(fileContent);
+                        await ProcessFileAsync(filePath);
                         _rabbitMQService.SendMessage("Processing completed successfully for file.");
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error processing file");
+                        _logger.LogError(ex, "Error processing file at {FilePath}", filePath);
                         _rabbitMQService.SendMessage($"Processing failed: {ex.Message}");
                     }
                 }
-
                 await Task.Delay(1000, stoppingToken);
             }
         }
 
-
         private async Task ProcessFileAsync(string filePath)
         {
             _logger.LogInformation("Starting streaming processing of: {FilePath}", filePath);
+            if (filePath.Length > 260)
+            {
+                throw new InvalidOperationException("File path is too long. Ensure the path is within 260 characters.");
+            }
 
-            string outputFileName = $"TrackingNumbers_{DateTime.Now:yyyyMMddHHmmss}.txt";
+            var fileInfo = new FileInfo(filePath);
+            if (fileInfo.Length > 100_000_000)
+            {
+                throw new InvalidOperationException("File is too large to process.");
+            }
+
+            string outputFileName = Path.Combine(Path.GetTempPath(), $"Tracking_{Guid.NewGuid()}.txt");
+            if (outputFileName.Length > 260)
+            {
+                throw new InvalidOperationException("Output file path is too long.");
+            }
 
             try
             {
@@ -61,8 +73,6 @@ namespace ReciveAPI.Services
                 await using (var fileStream = File.OpenRead(filePath))
                 using (var streamReader = new StreamReader(fileStream))
                 using (var jsonReader = new JsonTextReader(streamReader))
-
-
                 {
                     jsonReader.SupportMultipleContent = true;
                     jsonReader.FloatParseHandling = FloatParseHandling.Decimal;
@@ -76,7 +86,6 @@ namespace ReciveAPI.Services
                             if (jsonReader.TokenType == JsonToken.StartObject)
                             {
                                 var obj = await JObject.LoadAsync(jsonReader);
-
                                 if (obj["DocumentLines"] is JArray documentLines)
                                 {
                                     foreach (var line in documentLines)
@@ -107,6 +116,25 @@ namespace ReciveAPI.Services
                 }
 
                 _logger.LogInformation("Completed processing. Output: {OutputFile}", outputFileName);
+
+                try
+                {
+                    File.Delete(filePath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to delete temporary file {FilePath}", filePath);
+                }
+            }
+            catch (PathTooLongException pex)
+            {
+                _logger.LogError(pex, "Path too long for file {FilePath}", filePath);
+                throw new InvalidOperationException("The file path is too long.", pex);
+            }
+            catch (IOException ioex)
+            {
+                _logger.LogError(ioex, "IO error processing file {FilePath}", filePath);
+                throw;
             }
             catch (Exception ex)
             {
@@ -114,6 +142,5 @@ namespace ReciveAPI.Services
                 throw;
             }
         }
-
     }
 }

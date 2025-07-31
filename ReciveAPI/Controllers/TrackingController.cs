@@ -35,16 +35,29 @@ namespace ReciveAPI.Controllers
                 return BadRequest("Only JSON files are supported");
             }
 
+            if (file.Length > 100_000_000)
+            {
+                _logger.LogWarning("File too large: {FileSize} bytes", file.Length);
+                return BadRequest("File size exceeds 100 MB limit");
+            }
+
             try
             {
-                // Read the file content
-                using var reader = new StreamReader(file.OpenReadStream());
-                var fileContent = await reader.ReadToEndAsync();
+                string tempFilePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.json");
+                if (tempFilePath.Length > 260)
+                {
+                    _logger.LogError("Generated temporary file path too long: {Path}", tempFilePath);
+                    return StatusCode(500, "Temporary file path is too long");
+                }
 
-                // Add to queue for background processing
-                _queueServices.Enqueue(fileContent);
+                await using (var fileStream = new FileStream(tempFilePath, FileMode.Create))
+                {
+                    await file.CopyToAsync(fileStream);
+                }
 
-                _logger.LogInformation("File {FileName} queued for processing", file.FileName);
+                _queueServices.Enqueue(tempFilePath);
+                _logger.LogInformation("File {FileName} queued for processing at {Path}", file.FileName, tempFilePath);
+
                 return Accepted(new
                 {
                     Message = "File is being processed",
