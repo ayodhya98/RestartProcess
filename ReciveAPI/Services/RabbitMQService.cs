@@ -17,8 +17,9 @@ namespace ReciveAPI.Services
             var factory = new ConnectionFactory()
             {
                 HostName = configuration["RabbitMQ:HostName"],
-                UserName = "guest",
-                Password = "guest",
+                UserName = configuration["RabbitMQ:Username"],
+                Password = configuration["RabbitMQ:Password"],
+                Port = int.Parse(configuration["RabbitMQ:Port"] ?? "5672")
             };
 
             _connection = factory.CreateConnection();

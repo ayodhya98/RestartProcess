@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.Docker.Sdk">
+	<PropertyGroup>
+		<DockerTargetOS>Linux</DockerTargetOS>
+		<ProjectVersion>2.1</ProjectVersion>
+		<VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">17.0</VisualStudioVersion>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="docker-compose.override.yml" />
+		<None Include="docker-compose.yml" />
+	</ItemGroup>
+</Project>

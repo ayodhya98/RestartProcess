@@ -46,6 +46,11 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ReciveAPI v1");
+        c.RoutePrefix = string.Empty;  // Serve Swagger UI at app root (http://localhost:8080/)
+    });
     app.UseSwaggerUI();
 }
 
