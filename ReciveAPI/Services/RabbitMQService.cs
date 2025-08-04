@@ -10,13 +10,13 @@ namespace ReciveAPI.Services
         private readonly IModel _channel;
         private readonly string _queueName = "Processing_Result";
         private readonly ILogger<IRabbitMQService> _logger;
-        public RabbitMQService(ILogger<IRabbitMQService> logger)
+        public RabbitMQService(ILogger<IRabbitMQService> logger, IConfiguration configuration)
         {
             _logger = logger;
 
             var factory = new ConnectionFactory()
             {
-                HostName = "localhost",
+                HostName = configuration["RabbitMQ:HostName"],
                 UserName = "guest",
                 Password = "guest",
             };
