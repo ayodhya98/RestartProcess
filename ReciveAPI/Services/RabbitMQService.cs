@@ -1,5 +1,7 @@
-﻿using RabbitMQ.Client;
+﻿using OpenTelemetry.Trace;
+using RabbitMQ.Client;
 using ReciveAPI.Services.IServices;
+using System.Diagnostics;
 using System.Text;
 
 namespace ReciveAPI.Services
@@ -10,9 +12,11 @@ namespace ReciveAPI.Services
         private readonly IModel _channel;
         private readonly string _queueName = "Processing_Result";
         private readonly ILogger<IRabbitMQService> _logger;
+        private readonly ActivitySource _activitySource;
         public RabbitMQService(ILogger<IRabbitMQService> logger, IConfiguration configuration)
         {
             _logger = logger;
+            _activitySource = new ActivitySource("RabbitMQService");
 
             var factory = new ConnectionFactory()
             {
@@ -29,15 +33,21 @@ namespace ReciveAPI.Services
                 durable: false,
                 exclusive: false,
                 autoDelete: false,
-                arguments: null   
+                arguments: null
                 );
         }
 
         public void SendMessage(string message)
         {
+            var activity = _activitySource.StartActivity("RabbitMQ.SendMessage");
+            activity?.AddTag("messaging.system", "rabbitmq");
+            activity?.AddTag("messaging.destination", _queueName);
+            activity?.AddTag("messaging.operation", "publish");
+            activity?.AddTag("message.size", Encoding.UTF8.GetByteCount(message));
+
             try
             {
-                var body = Encoding.UTF8.GetBytes( message );
+                var body = Encoding.UTF8.GetBytes(message);
                 _channel.BasicPublish
                     (
                     exchange: "",
@@ -45,12 +55,33 @@ namespace ReciveAPI.Services
                     basicProperties: null,
                     body: body
                     );
-                _logger.LogInformation("Sent message to RabbitMQ: {Message}", message);
+
+                activity?.SetStatus(ActivityStatusCode.Ok);
+                activity?.AddTag("message.sent", true);
+
+                _logger.LogInformation("Message sent to RabbitMQ successfully. Queue={QueueName}, MessageSize={MessageSize}, Activity={ActivityId}",
+                    _queueName, body.Length, activity?.Id);
             }
-            catch ( Exception ex )
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sending message to RabbitMQ");
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                activity?.RecordException(ex);
+                activity?.AddTag("message.sent", false);
+
+                _logger.LogError(ex, "Error sending message to RabbitMQ. Queue={QueueName}, ErrorType={ErrorType}, Activity={ActivityId}",
+                  _queueName, ex.GetType().Name, activity?.Id);
+                throw;
             }
+        }
+        public void Dispose()
+        {
+            _logger.LogInformation("Disposing RabbitMQ service. QueueName={QueueName}", _queueName);
+
+            _channel?.Close();
+            _connection?.Close();
+            _activitySource?.Dispose();
+
+            _logger.LogInformation("RabbitMQ service disposed successfully");
         }
     }
 }
