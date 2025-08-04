@@ -1,8 +1,10 @@
-﻿using Newtonsoft.Json;
+﻿using Microsoft.Extensions.Configuration;
+using MongoDB.Bson;
+using MongoDB.Driver;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using ReciveAPI.Models;
 using ReciveAPI.Services.IServices;
-using System.Text.Json;
-using JsonSerializer = Newtonsoft.Json.JsonSerializer;
 
 namespace ReciveAPI.Services
 {
@@ -11,17 +13,22 @@ namespace ReciveAPI.Services
         private readonly IFileProcessingQueueServices _queueServices;
         private readonly ILogger<FileProcessingBackgroundService> _logger;
         private readonly IRabbitMQService _rabbitMQService;
+        private readonly IMongoCollection<TrackingRecord> _trackingCollection;
 
-        public FileProcessingBackgroundService
-        (
-        IFileProcessingQueueServices queueServices,
-        ILogger<FileProcessingBackgroundService> logger,
-        IRabbitMQService rabbitMQService
-        )
+        public FileProcessingBackgroundService(
+            IFileProcessingQueueServices queueServices,
+            ILogger<FileProcessingBackgroundService> logger,
+            IRabbitMQService rabbitMQService,
+            IConfiguration configuration)
         {
             _queueServices = queueServices;
             _logger = logger;
             _rabbitMQService = rabbitMQService;
+
+            var mongoSettings = configuration.GetSection("MongoDB");
+            var client = new MongoClient(mongoSettings["ConnectionString"]);
+            var database = client.GetDatabase(mongoSettings["DatabaseName"]);
+            _trackingCollection = database.GetCollection<TrackingRecord>(mongoSettings["CollectionName"]);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -50,34 +57,26 @@ namespace ReciveAPI.Services
         private async Task ProcessFileAsync(string filePath)
         {
             _logger.LogInformation("Starting streaming processing of: {FilePath}", filePath);
+
             if (filePath.Length > 260)
             {
                 throw new InvalidOperationException("File path is too long. Ensure the path is within 260 characters.");
             }
 
             var fileInfo = new FileInfo(filePath);
-            if (fileInfo.Length > 100_000_000)
+            if (fileInfo.Length > 100_000_000) 
             {
                 throw new InvalidOperationException("File is too large to process.");
             }
 
-            string outputFileName = Path.Combine(Path.GetTempPath(), $"Tracking_{Guid.NewGuid()}.txt");
-            if (outputFileName.Length > 260)
-            {
-                throw new InvalidOperationException("Output file path is too long.");
-            }
-
             try
             {
-                await using (var outputWriter = new StreamWriter(outputFileName))
                 await using (var fileStream = File.OpenRead(filePath))
                 using (var streamReader = new StreamReader(fileStream))
                 using (var jsonReader = new JsonTextReader(streamReader))
                 {
                     jsonReader.SupportMultipleContent = true;
                     jsonReader.FloatParseHandling = FloatParseHandling.Decimal;
-
-                    var serializer = new JsonSerializer();
 
                     while (await jsonReader.ReadAsync())
                     {
@@ -86,6 +85,8 @@ namespace ReciveAPI.Services
                             if (jsonReader.TokenType == JsonToken.StartObject)
                             {
                                 var obj = await JObject.LoadAsync(jsonReader);
+                                var records = new List<TrackingRecord>();
+
                                 if (obj["DocumentLines"] is JArray documentLines)
                                 {
                                     foreach (var line in documentLines)
@@ -93,7 +94,13 @@ namespace ReciveAPI.Services
                                         var trackingNo = line["U_TrackingNo"]?.ToString();
                                         if (!string.IsNullOrEmpty(trackingNo))
                                         {
-                                            await outputWriter.WriteLineAsync(trackingNo);
+                                            records.Add(new TrackingRecord
+                                            {
+                                                TrackingNumber = trackingNo,
+                                                JsonObject = obj.ToObject<BsonDocument>(),
+                                                FileName = Path.GetFileName(filePath),
+                                                ProcessedAt = DateTime.UtcNow
+                                            });
                                         }
                                     }
                                 }
@@ -102,8 +109,19 @@ namespace ReciveAPI.Services
                                     var trackingNo = obj["U_TrackingNo"]?.ToString();
                                     if (!string.IsNullOrEmpty(trackingNo))
                                     {
-                                        await outputWriter.WriteLineAsync(trackingNo);
+                                        records.Add(new TrackingRecord
+                                        {
+                                            TrackingNumber = trackingNo,
+                                            JsonObject = obj.ToObject<BsonDocument>(),
+                                            FileName = Path.GetFileName(filePath),
+                                            ProcessedAt = DateTime.UtcNow
+                                        });
                                     }
+                                }
+
+                                if (records.Any())
+                                {
+                                    await _trackingCollection.InsertManyAsync(records);
                                 }
                             }
                         }
@@ -115,8 +133,7 @@ namespace ReciveAPI.Services
                     }
                 }
 
-                _logger.LogInformation("Completed processing. Output: {OutputFile}", outputFileName);
-
+                _logger.LogInformation("Completed processing file: {FilePath}", filePath);
                 try
                 {
                     File.Delete(filePath);
