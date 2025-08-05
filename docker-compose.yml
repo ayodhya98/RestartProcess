@@ -1,0 +1,6 @@
+services:
+  reciveapi:
+    image: ${DOCKER_REGISTRY-}reciveapi
+    build:
+      context: .
+      dockerfile: ReciveAPI/Dockerfile
