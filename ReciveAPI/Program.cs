@@ -22,7 +22,7 @@ builder.Services.AddOpenTelemetry()
         .AddOtlpExporter(otlp =>
         {
             otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
-            otlp.Protocol = OtlpExportProtocol.Grpc;
+            otlp.Protocol = OtlpExportProtocol.HttpProtobuf;
         }))
     .WithTracing(tracing => tracing
         .AddAspNetCoreInstrumentation()
@@ -34,7 +34,7 @@ builder.Services.AddOpenTelemetry()
         .AddOtlpExporter(otlp =>
         {
             otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
-            otlp.Protocol = OtlpExportProtocol.Grpc;
+            otlp.Protocol = OtlpExportProtocol.HttpProtobuf;
         }));
 
 builder.Logging.AddOpenTelemetry(options =>
@@ -50,7 +50,7 @@ builder.Logging.AddOpenTelemetry(options =>
     options.AddOtlpExporter(otlp =>
     {
         otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
-        otlp.Protocol = OtlpExportProtocol.Grpc;
+        otlp.Protocol = OtlpExportProtocol.HttpProtobuf;
     });
 });
 
