@@ -44,6 +44,8 @@ services:
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=Development
       - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
       - OTEL_DOTNET_EXPERIMENTAL_ASPNETCORE_DISABLE_URL_QUERY_REDACTION=true
+      - OTEL_EXPORTER_OTLP_HEADERS=X-Forwarded-Proto=http
+      - OTEL_EXPORTER_OTLP_HEADERS=X-Forwarded-Proto=http
     restart: on-failure
 
   backgroundworker:
