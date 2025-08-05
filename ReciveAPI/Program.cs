@@ -10,76 +10,72 @@ using System.Runtime.InteropServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers()
-    .AddNewtonsoftJson();
+// Add services to the container
+builder.Services.AddControllers().AddNewtonsoftJson();
 
+// Configure OpenTelemetry with simplified setup
 builder.Services.AddOpenTelemetry()
     .WithMetrics(metrics => metrics
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddRuntimeInstrumentation()
         .AddProcessInstrumentation()
-        .AddOtlpExporter(otlp =>
+        .AddMeter("Microsoft.AspNetCore.Hosting")
+        .AddOtlpExporter(o =>
         {
-            otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
-            otlp.Protocol = OtlpExportProtocol.Grpc;
+            o.Endpoint = new Uri("http://aspire-dashboard:18889");
+            o.Protocol = OtlpExportProtocol.HttpProtobuf;
         }))
     .WithTracing(tracing => tracing
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddSource("RabbitMQService")
         .AddSource("FileProcessingQueueServices")
-        .AddSource("FileProcessingBackgroundService")
-        .SetSampler(new AlwaysOnSampler())
-        .AddOtlpExporter(otlp =>
+        .AddOtlpExporter(o =>
         {
-            otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
-            otlp.Protocol = OtlpExportProtocol.Grpc;
+            o.Endpoint = new Uri("http://aspire-dashboard:18889");
+            o.Protocol = OtlpExportProtocol.HttpProtobuf;
         }));
 
+// Configure logging
 builder.Logging.AddOpenTelemetry(options =>
 {
     options.IncludeFormattedMessage = true;
     options.IncludeScopes = true;
-    options.SetResourceBuilder(ResourceBuilder.CreateDefault()
-        .AddService("ReciveAPI")
-        .AddAttributes(new Dictionary<string, object>
-        {
-            ["deployment.environment"] = builder.Environment.EnvironmentName
-        }));
-    options.AddOtlpExporter(otlp =>
+    options.SetResourceBuilder(
+        ResourceBuilder.CreateDefault()
+            .AddService("ReciveAPI")
+            .AddAttributes(new Dictionary<string, object>
+            {
+                ["deployment.environment"] = builder.Environment.EnvironmentName
+            }));
+
+    options.AddOtlpExporter(exporter =>
     {
-        otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
-        otlp.Protocol = OtlpExportProtocol.Grpc;
+        exporter.Endpoint = new Uri("http://aspire-dashboard:18889");
+        exporter.Protocol = OtlpExportProtocol.HttpProtobuf;
     });
 });
 
-
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
+// Add application services
 builder.Services.AddSingleton<IFileProcessingQueueServices, FileProcessingQueueServices>();
 builder.Services.AddSingleton<IRabbitMQService, RabbitMQService>();
 builder.Services.AddHostedService<FileProcessingBackgroundService>();
 
-
-
+// Configure Kestrel
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
-    serverOptions.Limits.MaxRequestBodySize = 524288000; // 500MB
+    serverOptions.Limits.MaxRequestBodySize = 524_288_000; // 500MB
 });
 
-// Configure form options
+// Configure Form Options
 builder.Services.Configure<FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = 524288000; // 500MB
-    options.MemoryBufferThreshold = 524288000; // 500MB
+    options.MultipartBodyLengthLimit = 524_288_000; // 500MB
     options.ValueLengthLimit = int.MaxValue;
-    options.ValueCountLimit = int.MaxValue;
 });
 
-
+// Fix path issues on Windows
 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 {
     AppContext.SetSwitch("Switch.System.IO.UseLegacyPathHandling", false);
@@ -88,22 +84,18 @@ if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "ReciveAPI v1");
-        c.RoutePrefix = string.Empty;  // Serve Swagger UI at app root (http://localhost:8080/)
+        c.RoutePrefix = string.Empty;
     });
-    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
-
 app.Run();
