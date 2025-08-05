@@ -25,16 +25,22 @@ builder.Services.AddOpenTelemetry()
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddRuntimeInstrumentation()
-        .AddProcessInstrumentation() 
-        .AddOtlpExporter())
+        .AddProcessInstrumentation()
+         .AddOtlpExporter(otlp =>
+         {
+             otlp.Endpoint = new Uri("http://localhost:18889");
+         }))
     .WithTracing(tracing => tracing
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddSource("RabbitMQService")
         .AddSource("FileProcessingQueueServices")
         .AddSource("FileProcessingBackgroundService")
-        .AddOtlpExporter());
-
+         .AddOtlpExporter(otlp =>
+         {
+             otlp.Endpoint = new Uri("http://localhost:18889");
+         }));
+builder.Logging.AddConsole();
 builder.Logging.AddOpenTelemetry(options =>
 {
     options.IncludeFormattedMessage = true;
@@ -45,7 +51,10 @@ builder.Logging.AddOpenTelemetry(options =>
         {
             ["deployment.environment"] = builder.Environment.EnvironmentName
         }));
-    options.AddOtlpExporter();
+    options.AddOtlpExporter(otlp =>
+    {
+        otlp.Endpoint = new Uri("http://localhost:18889");
+    });
 });
 
 

@@ -41,7 +41,7 @@ IHost host = Host.CreateDefaultBuilder(args)
                 options.AddOtlpExporter();
             });
         });
-
+       
         services.AddHostedService<Worker>();
         services.AddSingleton<IRabbitMQService, RabbitMQService>();
 
