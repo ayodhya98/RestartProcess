@@ -17,7 +17,7 @@ IHost host = Host.CreateDefaultBuilder(args)
                 .AddMeter("BackgroundProcessWorker.RabbitMQ")
                 .AddOtlpExporter(otlp =>
                 {
-                    otlp.Endpoint = new Uri("http://aspire-dashboard:4317");
+                    otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
                     otlp.Protocol = OtlpExportProtocol.Grpc;
                 }))
             .WithTracing(tracing => tracing
@@ -26,7 +26,7 @@ IHost host = Host.CreateDefaultBuilder(args)
                 .SetSampler(new AlwaysOnSampler())
                 .AddOtlpExporter(otlp =>
                 {
-                    otlp.Endpoint = new Uri("http://aspire-dashboard:4317");
+                    otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
                     otlp.Protocol = OtlpExportProtocol.Grpc;
                 }));
 
@@ -44,7 +44,7 @@ IHost host = Host.CreateDefaultBuilder(args)
                     }));
                 options.AddOtlpExporter(otlp =>
                 {
-                    otlp.Endpoint = new Uri("http://aspire-dashboard:4317");
+                    otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
                     otlp.Protocol = OtlpExportProtocol.Grpc;
                 });
             });
