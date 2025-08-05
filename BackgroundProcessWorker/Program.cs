@@ -10,28 +10,34 @@ IHost host = Host.CreateDefaultBuilder(args)
     .ConfigureServices(services =>
     {
         services.AddOpenTelemetry()
-        .ConfigureResource(resource => resource.AddService(serviceName: "WorkerService"))
-        .WithMetrics(matrices =>
-        {
-            matrices.AddAspNetCoreInstrumentation()
-                    .AddAspNetCoreInstrumentation();
-            matrices.AddOtlpExporter();
-        }
-
-                 )
-        .WithTracing(tracing =>
-        tracing.AddAspNetCoreInstrumentation()
-                .AddHttpClientInstrumentation()
+            .ConfigureResource(resource => resource
+                .AddService(serviceName: "BackgroundWorker")
+                .AddAttributes(new Dictionary<string, object>
+                {
+                    ["deployment.environment"] = "Development"
+                }))
+            .WithMetrics(metrics => metrics
+                .AddRuntimeInstrumentation()
+                .AddProcessInstrumentation()
+                .AddMeter("BackgroundProcessWorker.RabbitMQ")
+                .AddOtlpExporter())
+            .WithTracing(tracing => tracing
                 .AddSource("RabbitMQService")
-                .AddOtlpExporter()
+                .AddSource("FileProcessingBackgroundService")
+                .AddOtlpExporter());
 
-            );
         services.AddLogging(logging =>
         {
             logging.AddOpenTelemetry(options =>
             {
                 options.IncludeFormattedMessage = true;
                 options.IncludeScopes = true;
+                options.SetResourceBuilder(ResourceBuilder.CreateDefault()
+                    .AddService("BackgroundWorker")
+                    .AddAttributes(new Dictionary<string, object>
+                    {
+                        ["deployment.environment"] = "Development"
+                    }));
                 options.AddOtlpExporter();
             });
         });

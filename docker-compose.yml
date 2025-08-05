@@ -41,7 +41,9 @@ services:
       - DOTNET_USE_POLLING_FILE_WATCHER=1
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
       - OTEL_SERVICE_NAME=reciveapi
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=Development
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_DOTNET_EXPERIMENTAL_ASPNETCORE_DISABLE_URL_QUERY_REDACTION=true
     restart: on-failure
 
   backgroundworker:
@@ -67,7 +69,9 @@ services:
       - DOTNET_USE_POLLING_FILE_WATCHER=1
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
       - OTEL_SERVICE_NAME=backgroundworker
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=Development
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_DOTNET_EXPERIMENTAL_ASPNETCORE_DISABLE_URL_QUERY_REDACTION=true
     restart: on-failure
 
   rabbitmq:

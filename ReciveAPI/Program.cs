@@ -15,35 +15,37 @@ builder.Services.AddControllers()
     .AddNewtonsoftJson();
 
 builder.Services.AddOpenTelemetry()
-    .ConfigureResource(resource => resource.AddService(serviceName: "ReciveAPI"))
-    .WithMetrics(metrics =>
-    {
-        metrics
-                .AddAspNetCoreInstrumentation()
-                .AddHttpClientInstrumentation();
-        metrics.AddOtlpExporter();
-
-    }
-                 )
+    .ConfigureResource(resource => resource
+        .AddService(serviceName: "ReciveAPI")
+        .AddAttributes(new Dictionary<string, object>
+        {
+            ["deployment.environment"] = builder.Environment.EnvironmentName
+        }))
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddRuntimeInstrumentation()
+        .AddProcessInstrumentation() 
+        .AddOtlpExporter())
     .WithTracing(tracing => tracing
-                 .AddAspNetCoreInstrumentation()
-                 .AddHttpClientInstrumentation()
-                 .AddSource("RabbitMQService")
-                 .AddSource("FileProcessingQueueServices")
-                 .AddSource("FileProcessingBackgroundService")
-                 .AddOtlpExporter()
-                 //.AddOtlpExporter(options =>
-                 //{
-                 //    options.Endpoint = new Uri("http://localhost:4317");
-                 //})
-                 );
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddSource("RabbitMQService")
+        .AddSource("FileProcessingQueueServices")
+        .AddSource("FileProcessingBackgroundService")
+        .AddOtlpExporter());
 
-builder.Logging.AddOpenTelemetry(logging =>
+builder.Logging.AddOpenTelemetry(options =>
 {
-    logging.IncludeFormattedMessage = true;
-    logging.IncludeScopes = true;
-    logging.AddConsoleExporter();
-    logging.AddOtlpExporter();
+    options.IncludeFormattedMessage = true;
+    options.IncludeScopes = true;
+    options.SetResourceBuilder(ResourceBuilder.CreateDefault()
+        .AddService("ReciveAPI")
+        .AddAttributes(new Dictionary<string, object>
+        {
+            ["deployment.environment"] = builder.Environment.EnvironmentName
+        }));
+    options.AddOtlpExporter();
 });
 
 
