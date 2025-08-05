@@ -166,7 +166,6 @@ namespace ReciveAPI.Services
                         }
                         catch (JsonReaderException jex)
                         {
-                            activity?.RecordException(jex);
                             _logger.LogWarning(jex, "Skipping malformed JSON object in {FilePath}", filePath);
                             continue;
                         }
@@ -205,28 +204,24 @@ namespace ReciveAPI.Services
             {
                 _logger.LogError(gfex, "GridFS error processing file {FilePath}", filePath);
                 activity?.SetStatus(ActivityStatusCode.Error, gfex.Message);
-                activity?.RecordException(gfex);
                 throw;
             }
             catch (PathTooLongException pex)
             {
                 _logger.LogError(pex, "Path too long for file {FilePath}", filePath);
                 activity?.SetStatus(ActivityStatusCode.Error, pex.Message);
-                activity?.RecordException(pex);
                 throw new InvalidOperationException("The file path is too long.", pex);
             }
             catch (IOException ioex)
             {
                 _logger.LogError(ioex, "IO error processing file {FilePath}", filePath);
                 activity?.SetStatus(ActivityStatusCode.Error, ioex.Message);
-                activity?.RecordException(ioex);
                 throw;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing file {FilePath}", filePath);
                 activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                activity?.RecordException(ex);
                 throw;
             }
         }

@@ -6,14 +6,6 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
-//var builder = Host.CreateApplicationBuilder(args);
-//builder.Services.AddHostedService<Worker>();
-
-////var host = builder.Build();
-////host.Run();
-
-
-
 IHost host = Host.CreateDefaultBuilder(args)
     .ConfigureServices(services =>
     {

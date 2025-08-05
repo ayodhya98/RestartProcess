@@ -11,7 +11,7 @@ services:
       - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:18888"]
-      interval: 10s
+      interval: 30s
       timeout: 10s
       retries: 5
       start_period: 30s
@@ -28,8 +28,7 @@ services:
         condition: service_healthy
       mongodb:
         condition: service_healthy
-      aspire-dashboard:
-        condition: service_healthy
+
     environment:
       - RabbitMQ__HostName=rabbitmq
       - RabbitMQ__Username=guest
@@ -43,6 +42,7 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
       - OTEL_SERVICE_NAME=reciveapi
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+    restart: on-failure
 
   backgroundworker:
     container_name: backgroundworker
@@ -54,8 +54,7 @@ services:
         condition: service_healthy
       mongodb:
         condition: service_healthy
-      aspire-dashboard:
-        condition: service_healthy
+
     environment:
       - RabbitMQ__HostName=rabbitmq
       - RabbitMQ__Username=guest
@@ -69,6 +68,7 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
       - OTEL_SERVICE_NAME=backgroundworker
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+    restart: on-failure
 
   rabbitmq:
     image: rabbitmq:3-management
