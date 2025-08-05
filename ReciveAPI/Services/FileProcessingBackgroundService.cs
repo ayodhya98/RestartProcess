@@ -3,8 +3,10 @@ using MongoDB.Bson;
 using MongoDB.Driver;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using OpenTelemetry.Trace;
 using ReciveAPI.Models;
 using ReciveAPI.Services.IServices;
+using System.Diagnostics;
 
 namespace ReciveAPI.Services
 {
@@ -14,6 +16,7 @@ namespace ReciveAPI.Services
         private readonly ILogger<FileProcessingBackgroundService> _logger;
         private readonly IRabbitMQService _rabbitMQService;
         private readonly IMongoCollection<TrackingRecord> _trackingCollection;
+        private readonly ActivitySource _activitySource;
 
         public FileProcessingBackgroundService(
             IFileProcessingQueueServices queueServices,
@@ -25,6 +28,7 @@ namespace ReciveAPI.Services
             _logger = logger;
             _rabbitMQService = rabbitMQService;
 
+            _activitySource = new ActivitySource("FileProcessingBackgroundService");
             var mongoSettings = configuration.GetSection("MongoDB");
             var client = new MongoClient(mongoSettings["ConnectionString"]);
             var database = client.GetDatabase(mongoSettings["DatabaseName"]);
@@ -33,12 +37,16 @@ namespace ReciveAPI.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            var activity = _activitySource.StartActivity("BackgroundServiceExecution");
             _logger.LogInformation("File Processing Background Service is running.");
 
             while (!stoppingToken.IsCancellationRequested)
             {
                 if (_queueServices.TryDequeue(out var filePath))
                 {
+                    var ProcessActivity = _activitySource.StartActivity("processFile");
+                    ProcessActivity?.AddTag("file.path", filePath);
+
                     try
                     {
                         await ProcessFileAsync(filePath);
@@ -46,6 +54,9 @@ namespace ReciveAPI.Services
                     }
                     catch (Exception ex)
                     {
+                        ProcessActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                        ProcessActivity?.RecordException(ex);
+
                         _logger.LogError(ex, "Error processing file at {FilePath}", filePath);
                         _rabbitMQService.SendMessage($"Processing failed: {ex.Message}");
                     }
@@ -56,17 +67,30 @@ namespace ReciveAPI.Services
 
         private async Task ProcessFileAsync(string filePath)
         {
+            var activity = _activitySource.StartActivity("ProcessFileAsync");
+            activity?.AddTag("file.path", filePath);
+
             _logger.LogInformation("Starting streaming processing of: {FilePath}", filePath);
 
             if (filePath.Length > 260)
             {
-                throw new InvalidOperationException("File path is too long. Ensure the path is within 260 characters.");
+                var ex = new InvalidOperationException("File path is too long. Ensure the path is within 260 characters.");
+
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                activity?.RecordException(ex);
+                throw ex;
             }
 
             var fileInfo = new FileInfo(filePath);
-            if (fileInfo.Length > 100_000_000) 
+            activity?.AddTag("file.size", fileInfo.Length);
+
+            if (fileInfo.Length > 100_000_000)
             {
-                throw new InvalidOperationException("File is too large to process.");
+                var ex = new InvalidOperationException("File is too large to process.");
+
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                activity?.RecordException(ex);
+                throw ex;
             }
 
             try
@@ -127,9 +151,11 @@ namespace ReciveAPI.Services
                         }
                         catch (JsonReaderException jex)
                         {
+                            activity?.RecordException(jex);
                             _logger.LogWarning(jex, "Skipping malformed JSON object");
                             continue;
                         }
+
                     }
                 }
 
@@ -156,6 +182,8 @@ namespace ReciveAPI.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing file {FilePath}", filePath);
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                activity?.RecordException(ex);
                 throw;
             }
         }

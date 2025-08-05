@@ -1,4 +1,7 @@
 using Microsoft.AspNetCore.Http.Features;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using ReciveAPI.Services;
 using ReciveAPI.Services.IServices;
 using System.Runtime.InteropServices;
@@ -10,6 +13,29 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers()
     .AddNewtonsoftJson();
 
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService(serviceName: "ReciveAPI"))
+    .WithTracing(tracing => tracing
+                 .AddAspNetCoreInstrumentation()
+                 .AddHttpClientInstrumentation()
+                 .AddSource("RabbitMQService")
+                 .AddSource("FileProcessingQueueServices")
+                 .AddSource("FileProcessingBackgroundService")
+                 .AddOtlpExporter(options =>
+                 {
+                     options.Endpoint = new Uri("http://localhost:4317");
+                 })
+                 );
+
+builder.Logging.AddOpenTelemetry(logging =>
+{
+    logging.IncludeFormattedMessage = true;
+    logging.IncludeScopes = true;
+    logging.AddConsoleExporter();
+    logging.AddOtlpExporter();
+});
+
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -17,6 +43,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<IFileProcessingQueueServices, FileProcessingQueueServices>();
 builder.Services.AddSingleton<IRabbitMQService, RabbitMQService>();
 builder.Services.AddHostedService<FileProcessingBackgroundService>();
+
 
 
 builder.WebHost.ConfigureKestrel(serverOptions =>
@@ -46,6 +73,11 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ReciveAPI v1");
+        c.RoutePrefix = string.Empty;  // Serve Swagger UI at app root (http://localhost:8080/)
+    });
     app.UseSwaggerUI();
 }
 
