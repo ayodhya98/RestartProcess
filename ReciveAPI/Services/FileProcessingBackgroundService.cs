@@ -137,7 +137,7 @@ namespace ReciveAPI.Services
                                             records.Add(new TrackingRecord
                                             {
                                                 TrackingNumber = trackingNo,
-                                                JsonObject = obj.ToObject<BsonDocument>(),
+                                                JsonObject = BsonDocument.Parse(obj.ToString(Formatting.None)),
                                                 FileName = Path.GetFileName(filePath),
                                                 ProcessedAt = DateTime.UtcNow,
                                                 GridFSFileId = gridFSFileId.ToString()
@@ -153,7 +153,7 @@ namespace ReciveAPI.Services
                                         records.Add(new TrackingRecord
                                         {
                                             TrackingNumber = trackingNo,
-                                            JsonObject = obj.ToObject<BsonDocument>(),
+                                            JsonObject = BsonDocument.Parse(obj.ToString(Formatting.None)),
                                             FileName = Path.GetFileName(filePath),
                                             ProcessedAt = DateTime.UtcNow,
                                             GridFSFileId = gridFSFileId.ToString()
@@ -188,15 +188,15 @@ namespace ReciveAPI.Services
                 }
 
                 _logger.LogInformation("Completed processing file: {FilePath}", filePath);
-                try
-                {
-                    File.Delete(filePath);
-                    _logger.LogInformation("Deleted temporary file: {FilePath}", filePath);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to delete temporary file {FilePath}", filePath);
-                }
+                //try
+                //{
+                //    File.Delete(filePath);
+                //    _logger.LogInformation("Deleted temporary file: {FilePath}", filePath);
+                //}
+                //catch (Exception ex)
+                //{
+                //    _logger.LogWarning(ex, "Failed to delete temporary file {FilePath}", filePath);
+                //}
 
                 _rabbitMQService.SendMessage($"Processing completed successfully for file: {filePath}");
             }

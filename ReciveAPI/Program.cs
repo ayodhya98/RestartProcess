@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http.Features;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -9,38 +10,33 @@ using System.Runtime.InteropServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
 builder.Services.AddControllers()
     .AddNewtonsoftJson();
 
 builder.Services.AddOpenTelemetry()
-    .ConfigureResource(resource => resource
-        .AddService(serviceName: "ReciveAPI")
-        .AddAttributes(new Dictionary<string, object>
-        {
-            ["deployment.environment"] = builder.Environment.EnvironmentName
-        }))
     .WithMetrics(metrics => metrics
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddRuntimeInstrumentation()
         .AddProcessInstrumentation()
-         .AddOtlpExporter(otlp =>
-         {
-             otlp.Endpoint = new Uri("http://localhost:18889");
-         }))
+        .AddOtlpExporter(otlp =>
+        {
+            otlp.Endpoint = new Uri("http://aspire-dashboard:4317");
+            otlp.Protocol = OtlpExportProtocol.Grpc;
+        }))
     .WithTracing(tracing => tracing
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddSource("RabbitMQService")
         .AddSource("FileProcessingQueueServices")
         .AddSource("FileProcessingBackgroundService")
-         .AddOtlpExporter(otlp =>
-         {
-             otlp.Endpoint = new Uri("http://localhost:18889");
-         }));
-builder.Logging.AddConsole();
+        .SetSampler(new AlwaysOnSampler())
+        .AddOtlpExporter(otlp =>
+        {
+            otlp.Endpoint = new Uri("http://aspire-dashboard:4317");
+            otlp.Protocol = OtlpExportProtocol.Grpc;
+        }));
+
 builder.Logging.AddOpenTelemetry(options =>
 {
     options.IncludeFormattedMessage = true;
@@ -53,7 +49,8 @@ builder.Logging.AddOpenTelemetry(options =>
         }));
     options.AddOtlpExporter(otlp =>
     {
-        otlp.Endpoint = new Uri("http://localhost:18889");
+        otlp.Endpoint = new Uri("http://aspire-dashboard:4317");
+        otlp.Protocol = OtlpExportProtocol.Grpc;
     });
 });
 
