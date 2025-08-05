@@ -23,6 +23,7 @@ IHost host = Host.CreateDefaultBuilder(args)
             .WithTracing(tracing => tracing
                 .AddSource("RabbitMQService")
                 .AddSource("FileProcessingBackgroundService")
+                .SetSampler(new AlwaysOnSampler())
                 .AddOtlpExporter(otlp =>
                 {
                     otlp.Endpoint = new Uri("http://aspire-dashboard:4317");

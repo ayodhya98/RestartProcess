@@ -1,4 +1,5 @@
 using BackgroundProcessWorker.Services.IServices;
+using System.Diagnostics;
 
 namespace BackgroundProcessWorker
 {
@@ -6,6 +7,7 @@ namespace BackgroundProcessWorker
     {
         private readonly ILogger<Worker> _logger;
         private readonly IRabbitMQService _rabbitMQService;
+        private static readonly ActivitySource _testActivitySource = new("FileProcessingBackgroundService");
         public Worker(ILogger<Worker> logger, IRabbitMQService rabbitMQService)
         {
             _logger = logger;
@@ -27,6 +29,10 @@ namespace BackgroundProcessWorker
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("Worker started listening for messages...");
+
+            using var activity = _testActivitySource.StartActivity("TestActivity");
+            activity?.SetTag("custom.tag", "hello from background worker");
+
 
             _rabbitMQService.StartListening(message =>
             {

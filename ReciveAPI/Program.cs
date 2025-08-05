@@ -30,6 +30,7 @@ builder.Services.AddOpenTelemetry()
         .AddSource("RabbitMQService")
         .AddSource("FileProcessingQueueServices")
         .AddSource("FileProcessingBackgroundService")
+        .SetSampler(new AlwaysOnSampler())
         .AddOtlpExporter(otlp =>
         {
             otlp.Endpoint = new Uri("http://aspire-dashboard:4317");

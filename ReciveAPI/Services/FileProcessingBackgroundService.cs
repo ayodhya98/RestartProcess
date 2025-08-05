@@ -188,15 +188,15 @@ namespace ReciveAPI.Services
                 }
 
                 _logger.LogInformation("Completed processing file: {FilePath}", filePath);
-                try
-                {
-                    File.Delete(filePath);
-                    _logger.LogInformation("Deleted temporary file: {FilePath}", filePath);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to delete temporary file {FilePath}", filePath);
-                }
+                //try
+                //{
+                //    File.Delete(filePath);
+                //    _logger.LogInformation("Deleted temporary file: {FilePath}", filePath);
+                //}
+                //catch (Exception ex)
+                //{
+                //    _logger.LogWarning(ex, "Failed to delete temporary file {FilePath}", filePath);
+                //}
 
                 _rabbitMQService.SendMessage($"Processing completed successfully for file: {filePath}");
             }
