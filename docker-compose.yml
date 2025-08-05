@@ -1,6 +1,79 @@
 version: '3.8'
 
 services:
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:8.0
+    container_name: aspire-dashboard
+    ports:
+      - "18888:18888"
+      - "4317:4317"
+    environment:
+      - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18888"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  reciveapi:
+    container_name: reciveapi
+    build:
+      context: .
+      dockerfile: ReciveAPI/Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+
+    environment:
+      - RabbitMQ__HostName=rabbitmq
+      - RabbitMQ__Username=guest
+      - RabbitMQ__Password=guest
+      - RabbitMQ__Port=5672
+      - MongoDB__ConnectionString=mongodb://mongodb:27017
+      - MongoDB__DatabaseName=TrackingDb
+      - MongoDB__CollectionName=TrackingRecords
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DOTNET_USE_POLLING_FILE_WATCHER=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_SERVICE_NAME=reciveapi
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=Development
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_DOTNET_EXPERIMENTAL_ASPNETCORE_DISABLE_URL_QUERY_REDACTION=true
+    restart: on-failure
+
+  backgroundworker:
+    container_name: backgroundworker
+    build:
+      context: .
+      dockerfile: BackgroundProcessWorker/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+
+    environment:
+      - RabbitMQ__HostName=rabbitmq
+      - RabbitMQ__Username=guest
+      - RabbitMQ__Password=guest
+      - RabbitMQ__Port=5672
+      - MongoDB__ConnectionString=mongodb://mongodb:27017
+      - MongoDB__DatabaseName=TrackingDb
+      - MongoDB__CollectionName=TrackingRecords
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DOTNET_USE_POLLING_FILE_WATCHER=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_SERVICE_NAME=backgroundworker
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=Development
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_DOTNET_EXPERIMENTAL_ASPNETCORE_DISABLE_URL_QUERY_REDACTION=true
+    restart: on-failure
+
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
@@ -25,50 +98,6 @@ services:
       interval: 10s
       timeout: 10s
       retries: 3
-
-  reciveapi:
-    container_name: reciveapi
-    build:
-      context: .
-      dockerfile: ReciveAPI/Dockerfile
-    ports:
-      - "8080:8080"
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      mongodb:
-        condition: service_healthy
-    environment:
-      - RabbitMQ__HostName=rabbitmq
-      - RabbitMQ__Username=guest
-      - RabbitMQ__Password=guest
-      - RabbitMQ__Port=5672
-      - MongoDB__ConnectionString=mongodb://mongodb:27017
-      - MongoDB__DatabaseName=TrackingDb
-      - MongoDB__CollectionName=TrackingRecords
-      - ASPNETCORE_ENVIRONMENT=Development
-      - DOTNET_USE_POLLING_FILE_WATCHER=1
-
-  backgroundworker:
-    container_name: backgroundworker
-    build:
-      context: .
-      dockerfile: BackgroundProcessWorker/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      mongodb:
-        condition: service_healthy
-    environment:
-      - RabbitMQ__HostName=rabbitmq
-      - RabbitMQ__Username=guest
-      - RabbitMQ__Password=guest
-      - RabbitMQ__Port=5672
-      - MongoDB__ConnectionString=mongodb://mongodb:27017
-      - MongoDB__DatabaseName=TrackingDb
-      - MongoDB__CollectionName=TrackingRecords
-      - ASPNETCORE_ENVIRONMENT=Development
-      - DOTNET_USE_POLLING_FILE_WATCHER=1
 
 volumes:
   mongodb_data:

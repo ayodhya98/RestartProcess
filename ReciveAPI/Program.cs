@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.Features;
 using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using ReciveAPI.Services;
@@ -14,25 +15,46 @@ builder.Services.AddControllers()
     .AddNewtonsoftJson();
 
 builder.Services.AddOpenTelemetry()
-    .ConfigureResource(resource => resource.AddService(serviceName: "ReciveAPI"))
+    .ConfigureResource(resource => resource
+        .AddService(serviceName: "ReciveAPI")
+        .AddAttributes(new Dictionary<string, object>
+        {
+            ["deployment.environment"] = builder.Environment.EnvironmentName
+        }))
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddRuntimeInstrumentation()
+        .AddProcessInstrumentation()
+         .AddOtlpExporter(otlp =>
+         {
+             otlp.Endpoint = new Uri("http://localhost:18889");
+         }))
     .WithTracing(tracing => tracing
-                 .AddAspNetCoreInstrumentation()
-                 .AddHttpClientInstrumentation()
-                 .AddSource("RabbitMQService")
-                 .AddSource("FileProcessingQueueServices")
-                 .AddSource("FileProcessingBackgroundService")
-                 .AddOtlpExporter(options =>
-                 {
-                     options.Endpoint = new Uri("http://localhost:4317");
-                 })
-                 );
-
-builder.Logging.AddOpenTelemetry(logging =>
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddSource("RabbitMQService")
+        .AddSource("FileProcessingQueueServices")
+        .AddSource("FileProcessingBackgroundService")
+         .AddOtlpExporter(otlp =>
+         {
+             otlp.Endpoint = new Uri("http://localhost:18889");
+         }));
+builder.Logging.AddConsole();
+builder.Logging.AddOpenTelemetry(options =>
 {
-    logging.IncludeFormattedMessage = true;
-    logging.IncludeScopes = true;
-    logging.AddConsoleExporter();
-    logging.AddOtlpExporter();
+    options.IncludeFormattedMessage = true;
+    options.IncludeScopes = true;
+    options.SetResourceBuilder(ResourceBuilder.CreateDefault()
+        .AddService("ReciveAPI")
+        .AddAttributes(new Dictionary<string, object>
+        {
+            ["deployment.environment"] = builder.Environment.EnvironmentName
+        }));
+    options.AddOtlpExporter(otlp =>
+    {
+        otlp.Endpoint = new Uri("http://localhost:18889");
+    });
 });
 
 

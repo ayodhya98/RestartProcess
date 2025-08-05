@@ -6,8 +6,10 @@ namespace ReciveAPI.Models
     public class TrackingRecord
     {
         [BsonId]
+        public ObjectId Id { get; set; }
+
         [BsonRepresentation(BsonType.ObjectId)]
-        public string Id { get; set; }
+        public string GridFSFileId { get; set; }
 
         [BsonElement("TrackingNumber")]
         public string TrackingNumber { get; set; }
