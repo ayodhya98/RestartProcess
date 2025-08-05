@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using MongoDB.Driver.GridFS;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using OpenTelemetry.Trace;
@@ -17,6 +18,7 @@ namespace ReciveAPI.Services
         private readonly IRabbitMQService _rabbitMQService;
         private readonly IMongoCollection<TrackingRecord> _trackingCollection;
         private readonly ActivitySource _activitySource;
+        private readonly IGridFSBucket _gridFSBucket;
 
         public FileProcessingBackgroundService(
             IFileProcessingQueueServices queueServices,
@@ -33,6 +35,11 @@ namespace ReciveAPI.Services
             var client = new MongoClient(mongoSettings["ConnectionString"]);
             var database = client.GetDatabase(mongoSettings["DatabaseName"]);
             _trackingCollection = database.GetCollection<TrackingRecord>(mongoSettings["CollectionName"]);
+            _gridFSBucket = new GridFSBucket(database, new GridFSBucketOptions
+            {
+                BucketName = "invoices",
+                ChunkSizeBytes = 255 * 1024
+            });
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -72,29 +79,36 @@ namespace ReciveAPI.Services
 
             _logger.LogInformation("Starting streaming processing of: {FilePath}", filePath);
 
-            if (filePath.Length > 260)
-            {
-                var ex = new InvalidOperationException("File path is too long. Ensure the path is within 260 characters.");
-
-                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                activity?.RecordException(ex);
-                throw ex;
-            }
-
             var fileInfo = new FileInfo(filePath);
             activity?.AddTag("file.size", fileInfo.Length);
 
-            if (fileInfo.Length > 100_000_000)
-            {
-                var ex = new InvalidOperationException("File is too large to process.");
-
-                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                activity?.RecordException(ex);
-                throw ex;
-            }
-
+            ObjectId gridFSFileId = ObjectId.Empty;
             try
             {
+                using (var fileStream = File.OpenRead(filePath))
+                {
+                    var uploadOptions = new GridFSUploadOptions
+                    {
+                        Metadata = new BsonDocument
+                {
+                    { "filename", Path.GetFileName(filePath) },
+                    { "uploadDate", DateTime.UtcNow },
+                    { "contentType", "application/json" }
+                }
+                    };
+
+                    using var gridFSActivity = _activitySource.StartActivity("GridFSUpload");
+                    gridFSActivity?.AddTag("file.path", filePath);
+                    gridFSFileId = await _gridFSBucket.UploadFromStreamAsync(
+                        Path.GetFileName(filePath),
+                        fileStream,
+                        uploadOptions);
+                    gridFSActivity?.SetStatus(ActivityStatusCode.Ok);
+                    gridFSActivity?.AddTag("gridfs.file.id", gridFSFileId.ToString());
+
+                    _logger.LogInformation("File uploaded to GridFS with ID: {GridFSFileId}", gridFSFileId);
+                }
+
                 await using (var fileStream = File.OpenRead(filePath))
                 using (var streamReader = new StreamReader(fileStream))
                 using (var jsonReader = new JsonTextReader(streamReader))
@@ -102,6 +116,7 @@ namespace ReciveAPI.Services
                     jsonReader.SupportMultipleContent = true;
                     jsonReader.FloatParseHandling = FloatParseHandling.Decimal;
 
+                    var records = new List<TrackingRecord>();
                     while (await jsonReader.ReadAsync())
                     {
                         try
@@ -109,7 +124,8 @@ namespace ReciveAPI.Services
                             if (jsonReader.TokenType == JsonToken.StartObject)
                             {
                                 var obj = await JObject.LoadAsync(jsonReader);
-                                var records = new List<TrackingRecord>();
+                                using var parseActivity = _activitySource.StartActivity("ParseJsonObject");
+                                parseActivity?.AddTag("file.path", filePath);
 
                                 if (obj["DocumentLines"] is JArray documentLines)
                                 {
@@ -123,7 +139,8 @@ namespace ReciveAPI.Services
                                                 TrackingNumber = trackingNo,
                                                 JsonObject = obj.ToObject<BsonDocument>(),
                                                 FileName = Path.GetFileName(filePath),
-                                                ProcessedAt = DateTime.UtcNow
+                                                ProcessedAt = DateTime.UtcNow,
+                                                GridFSFileId = gridFSFileId.ToString()
                                             });
                                         }
                                     }
@@ -138,24 +155,36 @@ namespace ReciveAPI.Services
                                             TrackingNumber = trackingNo,
                                             JsonObject = obj.ToObject<BsonDocument>(),
                                             FileName = Path.GetFileName(filePath),
-                                            ProcessedAt = DateTime.UtcNow
+                                            ProcessedAt = DateTime.UtcNow,
+                                            GridFSFileId = gridFSFileId.ToString()
                                         });
                                     }
                                 }
-
-                                if (records.Any())
-                                {
-                                    await _trackingCollection.InsertManyAsync(records);
-                                }
+                                parseActivity?.SetStatus(ActivityStatusCode.Ok);
+                                _logger.LogInformation("Parsed JSON object with {RecordCount} tracking records from {FilePath}", records.Count, filePath);
                             }
                         }
                         catch (JsonReaderException jex)
                         {
                             activity?.RecordException(jex);
-                            _logger.LogWarning(jex, "Skipping malformed JSON object");
+                            _logger.LogWarning(jex, "Skipping malformed JSON object in {FilePath}", filePath);
                             continue;
                         }
+                    }
 
+                    if (records.Any())
+                    {
+                        using var dbActivity = _activitySource.StartActivity("MongoDBInsert");
+                        dbActivity?.AddTag("db.operation", "InsertMany");
+                        dbActivity?.AddTag("db.collection", "TrackingRecords");
+                        dbActivity?.AddTag("record.count", records.Count);
+                        await _trackingCollection.InsertManyAsync(records);
+                        dbActivity?.SetStatus(ActivityStatusCode.Ok);
+                        _logger.LogInformation("Inserted {RecordCount} records into MongoDB for {FilePath}", records.Count, filePath);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("No tracking records found in {FilePath}", filePath);
                     }
                 }
 
@@ -163,20 +192,34 @@ namespace ReciveAPI.Services
                 try
                 {
                     File.Delete(filePath);
+                    _logger.LogInformation("Deleted temporary file: {FilePath}", filePath);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Failed to delete temporary file {FilePath}", filePath);
                 }
+
+                _rabbitMQService.SendMessage($"Processing completed successfully for file: {filePath}");
+            }
+            catch (MongoGridFSException gfex)
+            {
+                _logger.LogError(gfex, "GridFS error processing file {FilePath}", filePath);
+                activity?.SetStatus(ActivityStatusCode.Error, gfex.Message);
+                activity?.RecordException(gfex);
+                throw;
             }
             catch (PathTooLongException pex)
             {
                 _logger.LogError(pex, "Path too long for file {FilePath}", filePath);
+                activity?.SetStatus(ActivityStatusCode.Error, pex.Message);
+                activity?.RecordException(pex);
                 throw new InvalidOperationException("The file path is too long.", pex);
             }
             catch (IOException ioex)
             {
                 _logger.LogError(ioex, "IO error processing file {FilePath}", filePath);
+                activity?.SetStatus(ActivityStatusCode.Error, ioex.Message);
+                activity?.RecordException(ioex);
                 throw;
             }
             catch (Exception ex)

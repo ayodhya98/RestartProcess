@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.Features;
 using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using ReciveAPI.Services;
@@ -15,16 +16,26 @@ builder.Services.AddControllers()
 
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(serviceName: "ReciveAPI"))
+    .WithMetrics(metrics =>
+    {
+        metrics
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation();
+        metrics.AddOtlpExporter();
+
+    }
+                 )
     .WithTracing(tracing => tracing
                  .AddAspNetCoreInstrumentation()
                  .AddHttpClientInstrumentation()
                  .AddSource("RabbitMQService")
                  .AddSource("FileProcessingQueueServices")
                  .AddSource("FileProcessingBackgroundService")
-                 .AddOtlpExporter(options =>
-                 {
-                     options.Endpoint = new Uri("http://localhost:4317");
-                 })
+                 .AddOtlpExporter()
+                 //.AddOtlpExporter(options =>
+                 //{
+                 //    options.Endpoint = new Uri("http://localhost:4317");
+                 //})
                  );
 
 builder.Logging.AddOpenTelemetry(logging =>
