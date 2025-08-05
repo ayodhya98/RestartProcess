@@ -1,6 +1,7 @@
 using BackgroundProcessWorker;
 using BackgroundProcessWorker.Services;
 using BackgroundProcessWorker.Services.IServices;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -10,21 +11,23 @@ IHost host = Host.CreateDefaultBuilder(args)
     .ConfigureServices(services =>
     {
         services.AddOpenTelemetry()
-            .ConfigureResource(resource => resource
-                .AddService(serviceName: "BackgroundWorker")
-                .AddAttributes(new Dictionary<string, object>
-                {
-                    ["deployment.environment"] = "Development"
-                }))
             .WithMetrics(metrics => metrics
                 .AddRuntimeInstrumentation()
                 .AddProcessInstrumentation()
                 .AddMeter("BackgroundProcessWorker.RabbitMQ")
-                .AddOtlpExporter())
+                .AddOtlpExporter(otlp =>
+                {
+                    otlp.Endpoint = new Uri("http://aspire-dashboard:4317");
+                    otlp.Protocol = OtlpExportProtocol.Grpc;
+                }))
             .WithTracing(tracing => tracing
                 .AddSource("RabbitMQService")
                 .AddSource("FileProcessingBackgroundService")
-                .AddOtlpExporter());
+                .AddOtlpExporter(otlp =>
+                {
+                    otlp.Endpoint = new Uri("http://aspire-dashboard:4317");
+                    otlp.Protocol = OtlpExportProtocol.Grpc;
+                }));
 
         services.AddLogging(logging =>
         {
@@ -38,10 +41,15 @@ IHost host = Host.CreateDefaultBuilder(args)
                     {
                         ["deployment.environment"] = "Development"
                     }));
-                options.AddOtlpExporter();
+                options.AddOtlpExporter(otlp =>
+                {
+                    otlp.Endpoint = new Uri("http://aspire-dashboard:4317");
+                    otlp.Protocol = OtlpExportProtocol.Grpc;
+                });
             });
+            logging.AddConsole();
         });
-       
+
         services.AddHostedService<Worker>();
         services.AddSingleton<IRabbitMQService, RabbitMQService>();
 

@@ -137,7 +137,7 @@ namespace ReciveAPI.Services
                                             records.Add(new TrackingRecord
                                             {
                                                 TrackingNumber = trackingNo,
-                                                JsonObject = obj.ToObject<BsonDocument>(),
+                                                JsonObject = BsonDocument.Parse(obj.ToString(Formatting.None)),
                                                 FileName = Path.GetFileName(filePath),
                                                 ProcessedAt = DateTime.UtcNow,
                                                 GridFSFileId = gridFSFileId.ToString()
@@ -153,7 +153,7 @@ namespace ReciveAPI.Services
                                         records.Add(new TrackingRecord
                                         {
                                             TrackingNumber = trackingNo,
-                                            JsonObject = obj.ToObject<BsonDocument>(),
+                                            JsonObject = BsonDocument.Parse(obj.ToString(Formatting.None)),
                                             FileName = Path.GetFileName(filePath),
                                             ProcessedAt = DateTime.UtcNow,
                                             GridFSFileId = gridFSFileId.ToString()
