@@ -37,7 +37,7 @@ IHost host = Host.CreateDefaultBuilder(args)
                 options.IncludeFormattedMessage = true;
                 options.IncludeScopes = true;
                 options.SetResourceBuilder(ResourceBuilder.CreateDefault()
-                    .AddService("BackgroundWorker")
+                    .AddService("backgroundworker")
                     .AddAttributes(new Dictionary<string, object>
                     {
                         ["deployment.environment"] = "Development"

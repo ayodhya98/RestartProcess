@@ -41,8 +41,9 @@ builder.Logging.AddOpenTelemetry(options =>
 {
     options.IncludeFormattedMessage = true;
     options.IncludeScopes = true;
+    options.ParseStateValues = true;  // Add this line
     options.SetResourceBuilder(ResourceBuilder.CreateDefault()
-        .AddService("ReciveAPI")
+        .AddService("reciveapi")
         .AddAttributes(new Dictionary<string, object>
         {
             ["deployment.environment"] = builder.Environment.EnvironmentName
@@ -51,9 +52,11 @@ builder.Logging.AddOpenTelemetry(options =>
     {
         otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
         otlp.Protocol = OtlpExportProtocol.Grpc;
+        otlp.ExportProcessorType = OpenTelemetry.ExportProcessorType.Batch;  // Add this line
     });
 });
 
+builder.Logging.SetMinimumLevel(LogLevel.Information);  // Ensure minimum log level is set
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -105,5 +108,9 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
+
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+logger.LogInformation("Application starting up");
+logger.LogWarning("This is a test warning message");
 
 app.Run();
