@@ -8,10 +8,18 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 IHost host = Host.CreateDefaultBuilder(args)
-    .ConfigureServices(services =>
+    .ConfigureServices((hostContext, services) =>
     {
+        var resourceBuilder = ResourceBuilder.CreateDefault()
+            .AddService("backgroundworker")
+            .AddAttributes(new Dictionary<string, object>
+            {
+                ["deployment.environment"] = hostContext.HostingEnvironment.EnvironmentName
+            });
+
         services.AddOpenTelemetry()
             .WithMetrics(metrics => metrics
+                .SetResourceBuilder(resourceBuilder)
                 .AddRuntimeInstrumentation()
                 .AddProcessInstrumentation()
                 .AddMeter("BackgroundProcessWorker.RabbitMQ")
@@ -21,6 +29,7 @@ IHost host = Host.CreateDefaultBuilder(args)
                     otlp.Protocol = OtlpExportProtocol.Grpc;
                 }))
             .WithTracing(tracing => tracing
+                .SetResourceBuilder(resourceBuilder)
                 .AddSource("RabbitMQService")
                 .AddSource("FileProcessingBackgroundService")
                 .SetSampler(new AlwaysOnSampler())
@@ -36,12 +45,7 @@ IHost host = Host.CreateDefaultBuilder(args)
             {
                 options.IncludeFormattedMessage = true;
                 options.IncludeScopes = true;
-                options.SetResourceBuilder(ResourceBuilder.CreateDefault()
-                    .AddService("backgroundworker")
-                    .AddAttributes(new Dictionary<string, object>
-                    {
-                        ["deployment.environment"] = "Development"
-                    }));
+                options.SetResourceBuilder(resourceBuilder);
                 options.AddOtlpExporter(otlp =>
                 {
                     otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
@@ -53,7 +57,6 @@ IHost host = Host.CreateDefaultBuilder(args)
 
         services.AddHostedService<Worker>();
         services.AddSingleton<IRabbitMQService, RabbitMQService>();
-
     })
     .Build();
 

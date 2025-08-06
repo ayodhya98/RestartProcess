@@ -10,11 +10,19 @@ using System.Runtime.InteropServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var resourceBuilder = ResourceBuilder.CreateDefault()
+    .AddService("reciveapi")
+    .AddAttributes(new Dictionary<string, object>
+    {
+        ["deployment.environment"] = builder.Environment.EnvironmentName
+    });
+
 builder.Services.AddControllers()
     .AddNewtonsoftJson();
 
 builder.Services.AddOpenTelemetry()
     .WithMetrics(metrics => metrics
+        .SetResourceBuilder(resourceBuilder)
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddRuntimeInstrumentation()
@@ -25,6 +33,7 @@ builder.Services.AddOpenTelemetry()
             otlp.Protocol = OtlpExportProtocol.Grpc;
         }))
     .WithTracing(tracing => tracing
+        .SetResourceBuilder(resourceBuilder)
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddSource("RabbitMQService")
@@ -41,18 +50,13 @@ builder.Logging.AddOpenTelemetry(options =>
 {
     options.IncludeFormattedMessage = true;
     options.IncludeScopes = true;
-    options.ParseStateValues = true;  // Add this line
-    options.SetResourceBuilder(ResourceBuilder.CreateDefault()
-        .AddService("reciveapi")
-        .AddAttributes(new Dictionary<string, object>
-        {
-            ["deployment.environment"] = builder.Environment.EnvironmentName
-        }));
+    options.ParseStateValues = true;
+    options.SetResourceBuilder(resourceBuilder);
     options.AddOtlpExporter(otlp =>
     {
         otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
         otlp.Protocol = OtlpExportProtocol.Grpc;
-        otlp.ExportProcessorType = OpenTelemetry.ExportProcessorType.Batch;  // Add this line
+        otlp.ExportProcessorType = OpenTelemetry.ExportProcessorType.Batch;
     });
 });
 
