@@ -21,7 +21,7 @@ builder.Services.AddOpenTelemetry()
         .AddProcessInstrumentation()
         .AddOtlpExporter(otlp =>
         {
-            otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
+            otlp.Endpoint = new Uri("http://aspire-dashboard:4317");
             otlp.Protocol = OtlpExportProtocol.Grpc;
         }))
     .WithTracing(tracing => tracing
@@ -33,15 +33,21 @@ builder.Services.AddOpenTelemetry()
         .SetSampler(new AlwaysOnSampler())
         .AddOtlpExporter(otlp =>
         {
-            otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
+            otlp.Endpoint = new Uri("http://aspire-dashboard:4317");
             otlp.Protocol = OtlpExportProtocol.Grpc;
         }));
+
+// Configure logging
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+builder.Logging.SetMinimumLevel(LogLevel.Information);
 
 builder.Logging.AddOpenTelemetry(options =>
 {
     options.IncludeFormattedMessage = true;
     options.IncludeScopes = true;
-    options.ParseStateValues = true;  // Add this line
+    options.ParseStateValues = true;
     options.SetResourceBuilder(ResourceBuilder.CreateDefault()
         .AddService("reciveapi")
         .AddAttributes(new Dictionary<string, object>
@@ -50,13 +56,11 @@ builder.Logging.AddOpenTelemetry(options =>
         }));
     options.AddOtlpExporter(otlp =>
     {
-        otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
+        otlp.Endpoint = new Uri("http://aspire-dashboard:18889");
         otlp.Protocol = OtlpExportProtocol.Grpc;
-        otlp.ExportProcessorType = OpenTelemetry.ExportProcessorType.Batch;  // Add this line
+        otlp.ExportProcessorType = OpenTelemetry.ExportProcessorType.Batch;
     });
 });
-
-builder.Logging.SetMinimumLevel(LogLevel.Information);  // Ensure minimum log level is set
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -100,7 +104,6 @@ if (app.Environment.IsDevelopment())
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "ReciveAPI v1");
         c.RoutePrefix = string.Empty;  // Serve Swagger UI at app root (http://localhost:8080/)
     });
-    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
@@ -110,7 +113,9 @@ app.UseAuthorization();
 app.MapControllers();
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
-logger.LogInformation("Application starting up");
-logger.LogWarning("This is a test warning message");
+logger.LogInformation("ReciveAPI application starting up at {Time}", DateTimeOffset.Now);
+logger.LogInformation("Application environment: {Environment}", app.Environment.EnvironmentName);
+logger.LogWarning("This is a test warning message from ReciveAPI");
+logger.LogInformation("ReciveAPI application startup completed successfully");
 
 app.Run();
