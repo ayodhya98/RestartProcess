@@ -36,8 +36,6 @@ builder.Services.AddOpenTelemetry()
             otlp.Endpoint = new Uri("http://aspire-dashboard:4317");
             otlp.Protocol = OtlpExportProtocol.Grpc;
         }));
-
-// Configure logging
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.AddDebug();
