@@ -10,11 +10,19 @@ using System.Runtime.InteropServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var resourceBuilder = ResourceBuilder.CreateDefault()
+    .AddService("reciveapi")
+    .AddAttributes(new Dictionary<string, object>
+    {
+        ["deployment.environment"] = builder.Environment.EnvironmentName
+    });
+
 builder.Services.AddControllers()
     .AddNewtonsoftJson();
 
 builder.Services.AddOpenTelemetry()
     .WithMetrics(metrics => metrics
+        .SetResourceBuilder(resourceBuilder)
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddRuntimeInstrumentation()
@@ -25,6 +33,7 @@ builder.Services.AddOpenTelemetry()
             otlp.Protocol = OtlpExportProtocol.HttpProtobuf;
         }))
     .WithTracing(tracing => tracing
+        .SetResourceBuilder(resourceBuilder)
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddSource("RabbitMQService")
@@ -41,19 +50,17 @@ builder.Logging.AddOpenTelemetry(options =>
 {
     options.IncludeFormattedMessage = true;
     options.IncludeScopes = true;
-    options.SetResourceBuilder(ResourceBuilder.CreateDefault()
-        .AddService("ReciveAPI")
-        .AddAttributes(new Dictionary<string, object>
-        {
-            ["deployment.environment"] = builder.Environment.EnvironmentName
-        }));
+    options.ParseStateValues = true;
+    options.SetResourceBuilder(resourceBuilder);
     options.AddOtlpExporter(otlp =>
     {
         otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
-        otlp.Protocol = OtlpExportProtocol.HttpProtobuf;
+        otlp.Protocol = OtlpExportProtocol.Grpc;
+        otlp.ExportProcessorType = OpenTelemetry.ExportProcessorType.Batch;
     });
 });
 
+builder.Logging.SetMinimumLevel(LogLevel.Information);  // Ensure minimum log level is set
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -105,5 +112,9 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
+
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+logger.LogInformation("Application starting up");
+logger.LogWarning("This is a test warning message");
 
 app.Run();
