@@ -17,7 +17,7 @@ IHost host = Host.CreateDefaultBuilder(args)
                 .AddMeter("BackgroundProcessWorker.RabbitMQ")
                 .AddOtlpExporter(otlp =>
                 {
-                    otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
+                    otlp.Endpoint = new Uri("http://aspire-dashboard:4317");
                     otlp.Protocol = OtlpExportProtocol.Grpc;
                 }))
             .WithTracing(tracing => tracing
@@ -26,29 +26,35 @@ IHost host = Host.CreateDefaultBuilder(args)
                 .SetSampler(new AlwaysOnSampler())
                 .AddOtlpExporter(otlp =>
                 {
-                    otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
+                    otlp.Endpoint = new Uri("http://aspire-dashboard:4317");
                     otlp.Protocol = OtlpExportProtocol.Grpc;
                 }));
 
         services.AddLogging(logging =>
         {
+            logging.ClearProviders();
+            logging.AddConsole();
+            logging.AddDebug();
+            logging.SetMinimumLevel(LogLevel.Information);
+            
             logging.AddOpenTelemetry(options =>
             {
                 options.IncludeFormattedMessage = true;
                 options.IncludeScopes = true;
+                options.ParseStateValues = true;
                 options.SetResourceBuilder(ResourceBuilder.CreateDefault()
-                    .AddService("BackgroundWorker")
+                    .AddService("backgroundworker")
                     .AddAttributes(new Dictionary<string, object>
                     {
                         ["deployment.environment"] = "Development"
                     }));
                 options.AddOtlpExporter(otlp =>
                 {
-                    otlp.Endpoint = new Uri("http://aspire-dashboard:4317/");
+                    otlp.Endpoint = new Uri("http://aspire-dashboard:4317");
                     otlp.Protocol = OtlpExportProtocol.Grpc;
+                    otlp.ExportProcessorType = OpenTelemetry.ExportProcessorType.Batch;
                 });
             });
-            logging.AddConsole();
         });
 
         services.AddHostedService<Worker>();
